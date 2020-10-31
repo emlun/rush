@@ -1,3 +1,4 @@
+use crate::helpers::escape_singlequotes;
 use crate::lexer::Lexer;
 use crate::parser::Cmd;
 use crate::parser::Parser;
@@ -11,10 +12,6 @@ use crate::helpers::Shell;
 
 // Unless specified otherwise, if provided multiple arguments while only
 // accepting one, these use the first argument. Dash does this as well.  
-
-fn escape_singlequotes(s: &str) -> String {
-    s.replace("'", r"\'")
-}
 
 pub fn alias(shell: &Rc<RefCell<Shell>>, args: Vec<String>) -> bool {
     if args.is_empty() {

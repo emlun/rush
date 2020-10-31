@@ -233,3 +233,7 @@ impl Fd {
         self.get_stdout()
     }
 }
+
+pub fn escape_singlequotes(s: &str) -> String {
+    s.replace("'", r"\'")
+}

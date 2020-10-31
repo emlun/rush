@@ -1,4 +1,4 @@
-use crate::helpers::{Fd, Shell};
+use crate::helpers::{escape_singlequotes, Fd, Shell};
 use crate::lexer::Token::{self, *};
 use crate::lexer::{
     Action,
@@ -106,14 +106,14 @@ impl Simple {
 
         if let Some(env) = &self.env {
             for (k, v) in env {
-                result.push_str(&format!("{}='{}' ", k, v));
+                result.push_str(&format!("{}='{}' ", k, escape_singlequotes(v)));
             }
         }
 
         result.push_str(&self.cmd);
 
         for arg in &self.args {
-            result.push_str(&format!(" '{}'", arg));
+            result.push_str(&format!(" '{}'", escape_singlequotes(arg)));
         }
 
         result
