@@ -1,7 +1,5 @@
 use crate::builtins;
 use crate::helpers::{Fd, Shell};
-use crate::lexer::Lexer;
-use crate::parser::Parser;
 use crate::parser::{Cmd, Simple};
 use os_pipe::{pipe, PipeReader, PipeWriter};
 use std::process::Command;
@@ -97,11 +95,7 @@ impl Runner {
     }
 
     fn expand_alias(&self, cmd: Simple) -> Cmd {
-        let substitution = &self.shell.borrow().aliases[&cmd.cmd];
-        let lexer = Lexer::new(substitution, Rc::clone(&self.shell));
-        let mut parser = Parser::new(lexer, Rc::clone(&self.shell));
-
-        if let Ok(expanded) = parser.get() {
+        if let Some(substitution) = &self.shell.borrow().aliases[&cmd.cmd] {
             fn move_args(expanding: Cmd, parent: Simple) -> Cmd {
                 match expanding {
                     Cmd::Simple(mut new_simple) => {
@@ -141,7 +135,7 @@ impl Runner {
                 }
             }
 
-            move_args(propagate_env(expanded, &cmd), cmd)
+            move_args(propagate_env(substitution.clone(), &cmd), cmd)
         } else {
             let mut cmd = cmd;
             cmd.cmd = if cmd.args.is_empty() {
@@ -187,7 +181,7 @@ impl Runner {
     fn visit_simple(&self, mut simple: Simple, stdio: CmdMeta) -> bool {
         self.reconcile_io(&mut simple, stdio);
         match &simple.cmd[..] {
-            "alias" => builtins::alias(&mut self.shell.borrow_mut().aliases, simple.args),
+            "alias" => builtins::alias(&self.shell, simple.args),
             "exit" => builtins::exit(simple.args),
             "cd" => builtins::cd(simple.args),
             "set" => builtins::set(simple.args, &self.shell),

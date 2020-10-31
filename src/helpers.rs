@@ -5,6 +5,7 @@ use std::env;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufRead, BufReader, Write};
 use std::process::{Stdio, self};
+use crate::parser::Cmd;
 
 // My own, less nasty version of BufRead::lines().
 // Returns an Option rather Option<Result>,
@@ -38,7 +39,8 @@ pub struct Shell {
     positional: Vec<String>,
     name: String,
     pub vars: HashMap<String, String>,
-    pub aliases: BTreeMap<String, String>,
+    // The value type is Optional because an alias can be defined but empty
+    pub aliases: BTreeMap<String, Option<Cmd>>,
 }
 
 impl Shell {
