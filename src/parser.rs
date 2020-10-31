@@ -1,4 +1,4 @@
-use crate::helpers::{Fd, Shell};
+use crate::helpers::{escape_singlequotes, Fd, Shell};
 use crate::lexer::Token::{self, *};
 use crate::lexer::{
     Action,
@@ -16,7 +16,7 @@ use std::process::exit;
 use std::rc::Rc;
 use crate::runner::Runner;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Cmd {
     Simple(Simple),
     Pipeline(Box<Cmd>, Box<Cmd>),
@@ -24,6 +24,25 @@ pub enum Cmd {
     Or(Box<Cmd>, Box<Cmd>),
     Not(Box<Cmd>),
     Empty,
+}
+
+impl Cmd {
+    pub fn to_commandline(&self) -> String {
+        match self {
+            Self::Simple(simple) => simple.to_commandline(),
+            Self::Pipeline(left, right) => {
+                format!("{} | {}", left.to_commandline(), right.to_commandline())
+            }
+            Self::And(left, right) => {
+                format!("{} && {}", left.to_commandline(), right.to_commandline())
+            }
+            Self::Or(left, right) => {
+                format!("{} || {}", left.to_commandline(), right.to_commandline())
+            }
+            Self::Not(cmd) => format!("! {}", cmd.to_commandline()),
+            Self::Empty => "".to_string(),
+        }
+    }
 }
 
 // Keeps track of io in one spot before it's put into a command
@@ -56,7 +75,7 @@ impl Io {
 }
 
 // The most basic command - it, its arguments, and its redirections.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Simple {
     pub cmd: String,
     pub args: Vec<String>,
@@ -80,6 +99,24 @@ impl Simple {
 
     fn add_env(&mut self, map: HashMap<String, String>) {
         self.env = Some(map);
+    }
+
+    fn to_commandline(&self) -> String {
+        let mut result = String::new();
+
+        if let Some(env) = &self.env {
+            for (k, v) in env {
+                result.push_str(&format!("{}='{}' ", k, escape_singlequotes(v)));
+            }
+        }
+
+        result.push_str(&self.cmd);
+
+        for arg in &self.args {
+            result.push_str(&format!(" '{}'", escape_singlequotes(arg)));
+        }
+
+        result
     }
 }
 

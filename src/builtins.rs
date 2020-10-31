@@ -1,3 +1,7 @@
+use crate::helpers::escape_singlequotes;
+use crate::lexer::Lexer;
+use crate::parser::Cmd;
+use crate::parser::Parser;
 use regex::Regex;
 use std::collections::BTreeMap;
 use std::process::exit as exit_program;
@@ -9,14 +13,17 @@ use crate::helpers::Shell;
 // Unless specified otherwise, if provided multiple arguments while only
 // accepting one, these use the first argument. Dash does this as well.  
 
-pub fn alias(
-    // Aliases can be added and then printed in the same command
-    aliases: &mut BTreeMap<String, String>,
-    args: Vec<String>,
-) -> bool {
+pub fn alias(shell: &Rc<RefCell<Shell>>, args: Vec<String>) -> bool {
     if args.is_empty() {
-        for (lhs, rhs) in aliases {
-            println!("alias {}='{}'", lhs, rhs);
+        for (lhs, rhs) in &shell.borrow_mut().aliases {
+            println!(
+                "alias {}='{}'",
+                lhs,
+                rhs.as_ref()
+                    .map(|cmd| cmd.to_commandline())
+                    .map(|cmd| escape_singlequotes(&cmd))
+                    .unwrap_or("".to_string())
+            );
         }
         true
     } else {
@@ -27,9 +34,28 @@ pub fn alias(
                 let caps = assignment_re.captures(&arg).unwrap();
                 let lhs = &caps[1];
                 let rhs = &caps[2];
-                aliases.insert(lhs.to_string(), rhs.to_string());
-            } else if aliases.contains_key(&arg) {
-                println!("alias {}='{}'", arg, aliases[&arg]);
+
+                let lexer = Lexer::new(rhs, Rc::clone(shell));
+                let mut parser = Parser::new(lexer, Rc::clone(shell));
+
+                if let Ok(substitution) = parser.get() {
+                    shell
+                        .borrow_mut()
+                        .aliases
+                        .insert(lhs.to_string(), Some(substitution));
+                } else {
+                    shell.borrow_mut().aliases.insert(lhs.to_string(), None);
+                }
+            } else if shell.borrow().aliases.contains_key(&arg) {
+                println!(
+                    "alias {}='{}'",
+                    arg,
+                    shell.borrow().aliases[&arg]
+                        .as_ref()
+                        .map(|cmd| cmd.to_commandline())
+                        .map(|cmd| escape_singlequotes(&cmd))
+                        .unwrap_or("".to_string())
+                );
             } else {
                 eprintln!("rush: alias: {}: not found", arg);
                 success = false;
@@ -67,7 +93,7 @@ pub fn set(args: Vec<String>, shell: &Rc<RefCell<Shell>>) -> bool {
     true
 }
 
-pub fn unalias(aliases: &mut BTreeMap<String, String>, args: Vec<String>) -> bool {
+pub fn unalias(aliases: &mut BTreeMap<String, Option<Cmd>>, args: Vec<String>) -> bool {
     if args.is_empty() {
         eprintln!("unalias: usage: unalias [-a] name [name ...]");
         false
